@@ -34,8 +34,8 @@ Below is the database of specific Art of Living projects that you MUST reference
 
 ### IMPORTANT INSTRUCTIONS
 1. ALWAYS recommend SPECIFIC projects from the database above based on user's interests, location, or donation amount.
-2. When recommending projects, reference them by name and include relevant details.
-3. For donations, When a user shares their donation budget, recommend ONLY projects that are below their budget and donation links if available.
+2. When recommending projects, reference them by name and include relevant details as per user input.
+3. For donations, When a user shares their donation budget, recommend ONLY projects that are below their budget and donation link for the same.
 4. If no projects match the user's budget, suggest the projects with the lowest minimum donations and explain the situation.
 5. For volunteering, match based on location and skills mentioned.
 6. If the user mentions a specific cause, recommend projects with matching impact focus.
@@ -56,15 +56,11 @@ st.set_page_config(page_title="Art of Living Assistant")
 if "messages" not in st.session_state.keys():
     st.session_state.messages = [{"role": "assistant", "content": "Welcome to Art of Living! How may I assist you today? Whether you're interested in donating, volunteering, or learning more about our projects, I'm here to help."}]
 
-# Display or clear chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
 
-def clear_chat_history():
-    st.session_state.messages = [{"role": "assistant", "content": "Welcome to Art of Living! How may I assist you today? Whether you're interested in donating, volunteering, or learning more about our projects, I'm here to help."}]
+# def clear_chat_history():
+#     st.session_state.messages = [{"role": "assistant", "content": "Welcome to Art of Living! How may I assist you today? Whether you're interested in donating, volunteering, or learning more about our projects, I'm here to help."}]
 
-st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
+st.sidebar.button('ALTRO AI')
 
 st.session_state["model"] = 'deepseek-r1:7b'
 
