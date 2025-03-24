@@ -20,6 +20,29 @@ MODEL_NAME = os.getenv("MODEL_NAME")
 
 st.set_page_config(page_title="Art of Living Assistant")
 
+
+def generate_llm_description(row):
+    title = row["Project title"]
+    cause = row["Target group"]
+    location = row["Project Locations"]
+    goal = row["Donation Needs"]
+
+    prompt = f"""
+You are an assistant that generates 4–5 sentence warm descriptions of Art of Living projects. Write a project description for public display based on title and other details(optional):
+
+Title: {title}
+Location: {location}
+Cause/Target Group: {cause}
+Goal: {goal}
+"""
+
+    response = chat(model=MODEL_NAME, messages=[
+        {"role": "system", "content": "You write informative and inspiring blurbs for service projects."},
+        {"role": "user", "content": prompt}
+    ])
+    return response["message"]["content"]
+
+
 # Custom Embedding Class for HuggingFace Model
 class NomicEmbeddings(Embeddings):
     def __init__(self):
@@ -29,7 +52,7 @@ class NomicEmbeddings(Embeddings):
         self.max_length = 8192
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """Embed multiple texts using mean pooling"""
+        texts = [str(t) for t in texts]  # Ensure all inputs are strings
         encoded_input = self.tokenizer(
             texts,
             padding=True,
@@ -37,63 +60,81 @@ class NomicEmbeddings(Embeddings):
             max_length=self.max_length,
             return_tensors='pt'
         )
-        
         with torch.no_grad():
             outputs = self.model(**encoded_input)
-        
-        # Mean pooling
         embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()
         return embeddings.tolist()
 
     def embed_query(self, text: str) -> list[float]:
-        """Embed a single query"""
         return self.embed_documents([text])[0]
-    
+
 @st.cache_resource
 def load_embeddings():
     return NomicEmbeddings()
 
 embedding_model = load_embeddings()
 
-
-# Text splitting configuration
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=8000,
     chunk_overlap=200,
-    length_function=lambda x: len(embedding_model.tokenizer.encode(x, add_special_tokens=False)),
+    length_function=lambda x: len(embedding_model.tokenizer.encode(str(x), add_special_tokens=False)),
     separators=["\n\n", "\n", ".", " ", ""]
 )
 
-# Load and process data
+# Load data
 xls = pd.ExcelFile("Data Sample for Altro AI.xlsx")
-sample_data = pd.read_excel(xls, "Sample").fillna("")
+sample_data = pd.read_excel(xls, "REAL and Mocked up Data for POC").fillna("")
 
-# Create documents with chunking
+# Create documents from metadata
 documents = []
 for _, row in sample_data.iterrows():
-    chunks = text_splitter.split_text(row["Description"])
-    for chunk in chunks:
+    def safe(field): 
+        value = row.get(field, "")
+        if pd.isna(value):
+            return ""
+        if isinstance(value, pd.Timestamp):
+            return value.strftime("%Y-%m-%d")
+        return str(value)
+
+    metadata = {
+        "title": safe("Project title"),
+        "link": safe("Links/Sources"),
+        "locations": safe("Project Locations"),
+        "target_group": safe("Target group"),
+        "persona": safe("Persona"),
+        "contact_person": safe("Contact Person"),
+        "contact_title": safe("Contact Person Title"),
+        "contact_email": safe("Contact Person email"),
+        "volunteer_needs": safe("Volunteer Needs"),
+        "volunteer_need_by": safe("Volunteer Need by (mm/dd/yyyy)"),
+        "tenure": safe("Tenure"),
+        "responsibilities": safe("Responsbilities"),
+        "donation_needs": safe("Donation Needs"),
+        "donation_amount": safe("Donation Amount ($)"),
+        "donation_need_by": safe("Donation Need by"),
+    }
+
+    synthetic_description = generate_llm_description(row),
+
+
+    if isinstance(synthetic_description, str) and synthetic_description.strip():
         documents.append(Document(
-            page_content=chunk,
-            metadata={
-                "title": row["Project title"],
-                "locations": row["Locations"],
-                "funding_needed": row["Project Needs"],
-                "volunteers_needed": row["Volunteer Needs"],
-                "impact_focus": row["Impact focus"],
-                "donation_link": row["Donation link"]
-            }
+            page_content=synthetic_description,
+            metadata=metadata
         ))
 
-# Create vector store with custom embeddings
 @st.cache_resource
 def init_vectorstore():
+    clean_documents = [
+        Document(page_content=str(doc.page_content), metadata=doc.metadata)
+        for doc in documents if isinstance(doc.page_content, str) and doc.page_content.strip()
+    ]
     return PGVector.from_documents(
-        documents=documents,
+        documents=clean_documents,
         embedding=embedding_model,
         collection_name=COLLECTION_NAME,
         connection_string=CONNECTION_STRING,
-        pre_delete_collection=True  # Optional: Clear existing data
+        pre_delete_collection=True
     )
 
 vector_store = init_vectorstore()
@@ -101,7 +142,6 @@ vector_store = init_vectorstore()
 def semantic_search(query, top_k=3):
     return vector_store.similarity_search(query, k=top_k)
 
-# Session state management
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": "Welcome to Art of Living! How may I assist you today?"}]
 
@@ -112,19 +152,11 @@ st.sidebar.button('ALTRO AI')
 st.session_state["model"] = MODEL_NAME
 
 def model_res_generator(user_input):
-    # Perform semantic search
     relevant_projects = semantic_search(user_input)
-    
-    # Format results for LLM
+
     projects_info = "\n\n".join([
         f"**{doc.metadata['title']}**\n"
-        f"- Description: {doc.page_content}\n"
-        f"- Locations: {doc.metadata['locations']}\n"
-        f"- Funding Needed: {doc.metadata['funding_needed']}\n"
-        f"- Volunteers Needed: {doc.metadata['volunteers_needed']}\n"
-        f"- Impact Focus: {doc.metadata['impact_focus']}\n"
-        f"- Donation Link: {doc.metadata['donation_link']}"
-        for doc in relevant_projects
+        f"- {doc.page_content}" for doc in relevant_projects
     ])
     
     # Generate response using Ollama
