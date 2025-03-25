@@ -12,7 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Load environment variables
 load_dotenv()
-
+os.environ["STREAMLIT_WATCHER_TYPE"] = "none"
 # Fetch values from .env file
 CONNECTION_STRING = os.getenv("DATABASE_URL")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME")
@@ -23,17 +23,11 @@ st.set_page_config(page_title="Art of Living Assistant")
 
 def generate_llm_description(row):
     title = row["Project title"]
-    cause = row["Target group"]
-    location = row["Project Locations"]
-    goal = row["Donation Needs"]
 
     prompt = f"""
-You are an assistant that generates 4–5 sentence warm descriptions of Art of Living projects. Write a project description for public display based on title and other details(optional):
+You are an assistant that generates 4–5 sentence warm descriptions of Art of Living projects based on what you already know for the given project title:
 
 Title: {title}
-Location: {location}
-Cause/Target Group: {cause}
-Goal: {goal}
 """
 
     response = chat(model=MODEL_NAME, messages=[
@@ -85,6 +79,16 @@ text_splitter = RecursiveCharacterTextSplitter(
 xls = pd.ExcelFile("Data Sample for Altro AI.xlsx")
 sample_data = pd.read_excel(xls, "REAL and Mocked up Data for POC").fillna("")
 
+descriptions = []
+for _, row in sample_data.iterrows():
+    try:
+        desc = generate_llm_description(row)
+        descriptions.append(desc)
+    except Exception as e:
+        print(f"Error on row {_}: {e}")
+        descriptions.append("")
+
+sample_data["Generated Description"] = descriptions
 # Create documents from metadata
 documents = []
 for _, row in sample_data.iterrows():
@@ -114,7 +118,7 @@ for _, row in sample_data.iterrows():
         "donation_need_by": safe("Donation Need by"),
     }
 
-    synthetic_description = generate_llm_description(row),
+    synthetic_description = row.get("Generated Description", "")
 
 
     if isinstance(synthetic_description, str) and synthetic_description.strip():
