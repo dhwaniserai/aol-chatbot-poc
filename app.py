@@ -13,29 +13,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Load environment variables
 load_dotenv()
 os.environ["STREAMLIT_WATCHER_TYPE"] = "none"
-# Fetch values from .env file
+
 CONNECTION_STRING = os.getenv("DATABASE_URL")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
 st.set_page_config(page_title="Art of Living Assistant")
-
-
-def generate_llm_description(row):
-    title = row["Project title"]
-
-    prompt = f"""
-You are an assistant that generates 4–5 sentence warm descriptions of Art of Living projects based on what you already know for the given project title:
-
-Title: {title}
-"""
-
-    response = chat(model=MODEL_NAME, messages=[
-        {"role": "system", "content": "You write informative and inspiring blurbs for service projects."},
-        {"role": "user", "content": prompt}
-    ])
-    return response["message"]["content"]
-
 
 # Custom Embedding Class for HuggingFace Model
 class NomicEmbeddings(Embeddings):
@@ -79,16 +62,6 @@ text_splitter = RecursiveCharacterTextSplitter(
 xls = pd.ExcelFile("Data Sample for Altro AI.xlsx")
 sample_data = pd.read_excel(xls, "REAL and Mocked up Data for POC").fillna("")
 
-descriptions = []
-for _, row in sample_data.iterrows():
-    try:
-        desc = generate_llm_description(row)
-        descriptions.append(desc)
-    except Exception as e:
-        print(f"Error on row {_}: {e}")
-        descriptions.append("")
-
-sample_data["Generated Description"] = descriptions
 # Create documents from metadata
 documents = []
 for _, row in sample_data.iterrows():
@@ -120,9 +93,7 @@ for _, row in sample_data.iterrows():
 
     synthetic_description = row.get("Generated Description", "")
 
-
-    if isinstance(synthetic_description, str) and synthetic_description.strip():
-        documents.append(Document(
+    documents.append(Document(
             page_content=synthetic_description,
             metadata=metadata
         ))
@@ -133,6 +104,7 @@ def init_vectorstore():
         Document(page_content=str(doc.page_content), metadata=doc.metadata)
         for doc in documents if isinstance(doc.page_content, str) and doc.page_content.strip()
     ]
+    print("inside init_vectorstore")
     return PGVector.from_documents(
         documents=clean_documents,
         embedding=embedding_model,
@@ -140,9 +112,11 @@ def init_vectorstore():
         connection_string=CONNECTION_STRING,
         pre_delete_collection=True
     )
+    
+   
 
 vector_store = init_vectorstore()
-
+print("after init_vectorstore")
 def semantic_search(query, top_k=3):
     return vector_store.similarity_search(query, k=top_k)
 
