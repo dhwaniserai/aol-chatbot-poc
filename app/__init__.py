@@ -3,13 +3,20 @@ from flask_cors import CORS
 from app.routes import routes
 from app.vector_store import init_vectorstore
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def create_app():
+    logger.info("Creating Flask application...")
     app = Flask(__name__, 
                 template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'))
     
     # Get environment
     is_production = os.getenv('FLASK_ENV') == 'production'
+    logger.info(f"Running in {'production' if is_production else 'development'} mode")
     
     # Configure CORS based on environment
     if is_production:
@@ -29,17 +36,17 @@ def create_app():
         CORS(app, resources={r"/*": {"origins": "*"}})
     
     # Initialize vector store during app startup
-    print("Starting application initialization...")
+    logger.info("Starting application initialization...")
     try:
         init_vectorstore()
-        print("Vector store initialization complete!")
+        logger.info("Vector store initialization complete!")
     except Exception as e:
-        print(f"Error initializing vector store: {str(e)}")
+        logger.error(f"Error initializing vector store: {str(e)}")
     
     app.register_blueprint(routes)
     
     # Print the port being used
-    port = int(os.getenv("PORT", 5001))
-    print(f"Application will run on port: {port}")
+    port = int(os.getenv("PORT", 10000))
+    logger.info(f"Application will run on port: {port}")
     
     return app
