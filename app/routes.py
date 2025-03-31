@@ -6,7 +6,8 @@ import os
 import traceback
 
 routes = Blueprint("routes", __name__)
-client = Together(TOGETHER_API_KEY)
+client = Together()  # Initialize without arguments
+client.api_key = TOGETHER_API_KEY  # Set API key separately
 
 @routes.route("/")
 def home():
