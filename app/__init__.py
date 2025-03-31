@@ -45,8 +45,8 @@ def create_app():
     
     app.register_blueprint(routes)
     
-    # Print the port being used
-    port = int(os.getenv("PORT", 10000))
+    # Get port dynamically from Render's environment or default to 5000
+    port = int(os.getenv("PORT", 5000))
     logger.info(f"Application will run on port: {port}")
     
     return app
