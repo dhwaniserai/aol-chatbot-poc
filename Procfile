@@ -1,1 +1,1 @@
-gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 
+gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 4 --access-logfile - --error-logfile - 
