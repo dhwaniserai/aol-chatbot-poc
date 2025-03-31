@@ -37,4 +37,9 @@ def create_app():
         print(f"Error initializing vector store: {str(e)}")
     
     app.register_blueprint(routes)
+    
+    # Print the port being used
+    port = int(os.getenv("PORT", 5001))
+    print(f"Application will run on port: {port}")
+    
     return app
